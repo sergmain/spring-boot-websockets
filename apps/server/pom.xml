@@ -7,7 +7,7 @@
     <groupId>ai.metaheuristic</groupId>
     <artifactId>spring-boot-websockets-example-server</artifactId>
     <version>1.0</version>
-    <packaging>pom</packaging>
+    <packaging>jar</packaging>
 
     <parent>
         <groupId>org.springframework.boot</groupId>
@@ -35,6 +35,13 @@
             <groupId>com.google.code.findbugs</groupId>
             <artifactId>jsr305</artifactId>
             <version>3.0.2</version>
+        </dependency>
+        <!-- https://mvnrepository.com/artifact/org.projectlombok/lombok -->
+        <dependency>
+            <!--License	MIT-->
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <scope>compile</scope>
         </dependency>
     </dependencies>
 
