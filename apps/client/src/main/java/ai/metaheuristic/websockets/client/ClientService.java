@@ -13,6 +13,7 @@ import org.springframework.web.socket.messaging.WebSocketStompClient;
 import java.lang.reflect.Type;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * @author Sergio Lissner
@@ -27,6 +28,7 @@ public class ClientService {
     static StompSession session;
     public static final String url = "ws://127.0.0.1:8080/dispatcher";
     public static final StompSessionHandler sessionHandler = new MyStompSessionHandler();
+    static AtomicBoolean inProcess = new AtomicBoolean();
 
     public static class MyStompSessionHandler extends StompSessionHandlerAdapter {
 
@@ -49,10 +51,17 @@ public class ClientService {
         public void handleTransportError(StompSession session, Throwable exception) {
             System.out.println("handleTransportError()");
             Thread t = new Thread(() -> {
+                if (inProcess.get()) {
+                    return;
+                }
+                inProcess.set(true);
                 try {
                     connectToServer();
                 } catch (Throwable th) {
-                    log.error("047.270 ProcessorEventBusService.interactWithFunctionRepository()", th);
+                    // log.error("047.270 ProcessorEventBusService.interactWithFunctionRepository()", th);
+                }
+                finally {
+                    inProcess.set(false);
                 }
             });
             t.start();
@@ -65,8 +74,13 @@ public class ClientService {
         stompClient.setMessageConverter(new StringMessageConverter());
 //        stompClient.setTaskScheduler(taskScheduler); // for heartbeats
 
-
-        connectToServer();
+        inProcess.set(true);
+        try {
+            connectToServer();
+        }
+        finally {
+            inProcess.set(false);
+        }
     }
 
     private static void connectToServer() throws InterruptedException, ExecutionException {

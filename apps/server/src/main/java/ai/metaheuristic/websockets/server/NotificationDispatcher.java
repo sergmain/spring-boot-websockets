@@ -1,4 +1,4 @@
-package ai.metaheuristic.websockets.client;
+package ai.metaheuristic.websockets.server;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
