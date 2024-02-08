@@ -54,7 +54,7 @@ public class ServerService {
             int value = (int) Math.round(Math.random() * 100d);
             template.convertAndSendToUser(
                 listener,
-                "/topic/new-task",
+                "/topic/events",
                 new Notification(Integer.toString(value)),
                 headerAccessor.getMessageHeaders());
         }

@@ -29,7 +29,7 @@ public class ServerRestController {
     @ResponseBody
     public String greet(String t) {
         String text = "[" + LocalDateTime.now() + "]:" + t;
-        this.template.convertAndSend("/topic/new-task", text);
+        this.template.convertAndSend("/topic/events", text);
         return text;
     }
 

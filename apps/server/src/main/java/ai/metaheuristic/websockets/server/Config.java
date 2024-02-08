@@ -38,7 +38,7 @@ public class Config {
         @Override
         public void configureMessageBroker(MessageBrokerRegistry config) {
             config.setApplicationDestinationPrefixes("/dispatcher");
-            config.enableSimpleBroker("/topic", "/queue");
+            config.enableSimpleBroker("/topic");
         }
 
         @Override
@@ -48,34 +48,5 @@ public class Config {
         }
     }
 
-/*
-    @EnableWebSocket
-    public static class WebSocketConfig implements WebSocketConfigurer {
-
-        @Override
-        public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
-            registry.addHandler(myHandler(), "/myHandler");
-//                .setHandshakeHandler(handshakeHandler());
-        }
-
-        @Bean
-        public WebSocketHandler myHandler() {
-            return new MyHandler();
-        }
-
-    }
-*/
-
-/*
-    @Bean
-    public DefaultHandshakeHandler handshakeHandler() {
-        TomcatRequestUpgradeStrategy strategy = new TomcatRequestUpgradeStrategy();
-        strategy.addWebSocketConfigurer(configurable -> {
-            policy.setInputBufferSize(8192);
-            policy.setIdleTimeout(600000);
-        });
-        return new DefaultHandshakeHandler(strategy);
-    }
-*/
 
 }
