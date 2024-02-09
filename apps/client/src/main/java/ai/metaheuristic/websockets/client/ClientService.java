@@ -1,12 +1,14 @@
 package ai.metaheuristic.websockets.client;
 
 import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.springframework.lang.NonNull;
 import org.springframework.lang.Nullable;
 import org.springframework.messaging.converter.StringMessageConverter;
 import org.springframework.messaging.simp.stomp.*;
+import org.springframework.scheduling.concurrent.SimpleAsyncTaskScheduler;
 import org.springframework.stereotype.Service;
 import org.springframework.web.socket.client.WebSocketClient;
 import org.springframework.web.socket.client.standard.StandardWebSocketClient;
@@ -17,7 +19,9 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * @author Sergio Lissner
@@ -30,108 +34,7 @@ public class ClientService {
     public static final String URL1 = "ws://127.0.0.1:8080/dispatcher";
     public static final String URL2 = "ws://127.0.0.1:8081/dispatcher";
 
-    static WebSocketClient webSocketClient = new StandardWebSocketClient();
-    static WebSocketStompClient stompClient = new WebSocketStompClient(webSocketClient);
-    final Map<String, MyStompSessionHandler> sessionHandlers = new HashMap<>();
-
-    static AtomicBoolean inProcess = new AtomicBoolean();
-
-    public ClientService() {
-    }
-
-    public static class MyStompSessionHandler extends StompSessionHandlerAdapter {
-
-        private final String url;
-        private final Function<String, Boolean> connectToServerFunc;
-        private boolean initialized = false;
-
-        public MyStompSessionHandler(String url, Function<String, Boolean> connectToServerFunc) {
-            this.url = url;
-            this.connectToServerFunc = connectToServerFunc;
-        }
-
-        @Override
-        public void afterConnected(StompSession session, StompHeaders connectedHeaders) {
-            System.out.println("afterConnected()");
-            // ...
-        }
-
-        @Override
-        public void handleException(StompSession session, @Nullable StompCommand command,
-                                    StompHeaders headers, byte[] payload, Throwable exception) {
-            System.out.println("handleException(), " + url);
-        }
-
-        /**
-         * This implementation is empty.
-         */
-        @Override
-        public void handleTransportError(StompSession session, Throwable exception) {
-            System.out.println("handleTransportError(), " + url);
-//            Thread t = new Thread(() -> {
-//                connectToServerFunc.apply(url);
-//            });
-//            t.start();
-        }
-    }
-
-    private boolean connectTo(String url) {
-//        while (true) {
-//            if (inProcess.get()) {
-//                try {
-//                    Thread.sleep(2000);
-//                }
-//                catch (InterruptedException e) {
-//                    //
-//                }
-//                continue;
-////                    return;
-//            }
-//            inProcess.set(true);
-            try {
-//                        status = reConnectToServerFunc.apply(session);
-                boolean status = connectToServer(url);
-                if (status) {
-                    return true;
-                }
-
-            } catch (IllegalStateException th) {
-                log.error("047.270 IllegalStateException ", th);
-            } catch (Throwable th) {
-                // log.error("047.270 ProcessorEventBusService.interactWithFunctionRepository()", th);
-            }
-            finally {
-//                inProcess.set(false);
-            }
-
-            try {
-                Thread.sleep(2000);
-            }
-            catch (InterruptedException e) {
-                //
-            }
-//                return;
-//        }
-        return true;
-    }
-
-    @PostConstruct
-    public void post() {
-
-        stompClient.setMessageConverter(new StringMessageConverter());
-//        stompClient.setTaskScheduler(taskScheduler); // for heartbeats
-
-//        inProcess.set(true);
-        try {
-            this.sessionHandlers.put(URL1, new MyStompSessionHandler(URL1, this::connectTo));
-            this.sessionHandlers.put(URL2, new MyStompSessionHandler(URL2, this::connectTo));
-            connectTo(URL1);
-            connectTo(URL2);
-        }
-        finally {
-//            inProcess.set(false);
-        }
-    }
+    final Map<String, WebSocketInfra> webSocketInfraMap = new HashMap<>();
 
     public static class MyStompFrameHandler implements StompFrameHandler  {
 
@@ -156,33 +59,178 @@ public class ClientService {
         }
     }
 
-    private boolean connectToServer(String url)  {
-        MyStompSessionHandler sessionHandler = sessionHandlers.get(url);
-        if (sessionHandler==null) {
-            log.error("Wrong url: " + url);
-            return true;
-        }
-        System.out.println("start processing CompletableFuture ");
-        CompletableFuture<StompSession> future = stompClient.connectAsync(url, sessionHandler);
+    public static class WebSocketInfra {
+        private final WebSocketClient webSocketClient;
+        private final WebSocketStompClient stompClient;
+        private final String url;
+        private final MyStompSessionHandler sessionHandler;
+        private final AtomicBoolean inProcess = new AtomicBoolean();
+        @Nullable
+        private Thread wsThread = null;
+        @Nullable
+        private Thread mainThread = null;
 
-        try {
-            System.out.println("\twaiting for completion");
-            StompSession session = future.get();
-            if (session!=null) {
-                StompHeaders headers = new StompHeaders();
-                headers.add("url", url);
-                headers.setDestination("/topic/events");
-                session.subscribe(headers, new MyStompFrameHandler(url));
-                sessionHandler.initialized = true;
-                System.out.println("\tinitialization of session was completed");
-            }
-            return true;
+        public WebSocketInfra(String url) {
+            this.url = url;
+            webSocketClient = new StandardWebSocketClient();
+            stompClient = new WebSocketStompClient(webSocketClient);
+            stompClient.setMessageConverter(new StringMessageConverter());
+            final SimpleAsyncTaskScheduler taskScheduler = new SimpleAsyncTaskScheduler();
+            stompClient.setTaskScheduler(taskScheduler); // for heartbeats
+
+            sessionHandler = new MyStompSessionHandler(url, url1 -> connectToServer(), inProcess::get, this::terminateWsThread);
         }
-        catch (Throwable e) {
-            if (!"IOException: The remote computer refused the network connection".equals(ExceptionUtils.getRootCauseMessage(e))) {
-                log.error("Error", e);
+
+        public void terminateWsThread() {
+            if (wsThread!=null) {
+                System.out.println("Start terminating ws thread, " + url);
+                wsThread.interrupt();
+                wsThread = null;
+                System.out.println("\tws thread was terminated, " + url);
             }
         }
-        return false;
+
+        public void terminateMainThread() {
+            if (mainThread!=null) {
+                System.out.println("Start terminating mian thread, " + url);
+                mainThread.interrupt();
+                mainThread = null;
+                System.out.println("\tmain thread was terminated, " + url);
+            }
+        }
+
+        private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
+        private final ReentrantReadWriteLock.WriteLock writeLock = lock.writeLock();
+        private boolean end = false;
+
+        private void runInfra() {
+            mainThread = new Thread(this::runInfraLoop);
+            mainThread.start();
+        }
+
+        private void runInfraLoop() {
+            while (!end) {
+                if (wsThread==null) {
+                    writeLock.lock();
+                    try {
+                        if (wsThread==null) {
+                            System.out.println("Create a new thread for connecting to server, " + url);
+                            wsThread = new Thread(this::connectToServer);
+                            wsThread.start();
+                        }
+                    }
+                    finally {
+                        writeLock.unlock();
+                    }
+                }
+                try {
+                    Thread.sleep(1000);
+                }
+                catch (InterruptedException e) {
+                    //
+                }
+            }
+        }
+
+        public void destroy() {
+            end = true;
+            terminateMainThread();
+            terminateWsThread();
+        }
+
+        private boolean connectToServer()  {
+            System.out.println("start processing CompletableFuture, " + url);
+            inProcess.set(true);
+            try {
+                CompletableFuture<StompSession> future = stompClient.connectAsync(url, sessionHandler);
+
+                System.out.println("\twaiting for completion, " + url);
+                StompSession session = future.get();
+                if (session!=null) {
+                    StompHeaders headers = new StompHeaders();
+                    headers.add("url", url);
+                    headers.setDestination("/topic/events");
+                    session.subscribe(headers, new MyStompFrameHandler(url));
+                    sessionHandler.initialized = true;
+                    System.out.println("\tinitialization of session was completed, " + url);
+                }
+                else {
+                    System.out.println("\tsession is null, " + url);
+                }
+                return true;
+            }
+            catch (Throwable e) {
+                if (!"IOException: The remote computer refused the network connection".equals(ExceptionUtils.getRootCauseMessage(e))) {
+                    log.error("Error, " + url, e);
+                }
+            }
+            finally {
+                inProcess.set(false);
+            }
+            return false;
+        }
     }
+
+    public static class MyStompSessionHandler extends StompSessionHandlerAdapter {
+
+        private final String url;
+        private final Function<String, Boolean> connectToServerFunc;
+        private final Supplier<Boolean> statusFunc;
+        private final Runnable terminateOnErrorFunc;
+        private boolean initialized = false;
+
+        public MyStompSessionHandler(String url, Function<String, Boolean> connectToServerFunc, Supplier<Boolean> statusFunc,
+                                     Runnable terminateOnErrorFunc) {
+            this.url = url;
+            this.connectToServerFunc = connectToServerFunc;
+            this.statusFunc = statusFunc;
+            this.terminateOnErrorFunc = terminateOnErrorFunc;
+        }
+
+        @Override
+        public void afterConnected(StompSession session, StompHeaders connectedHeaders) {
+            System.out.println("afterConnected(), " + url+ ", " + statusFunc.get());
+            // ...
+        }
+
+        @Override
+        public void handleException(StompSession session, @Nullable StompCommand command,
+                                    StompHeaders headers, byte[] payload, Throwable exception) {
+            System.out.println("handleException(), " + url+ ", " + statusFunc.get());
+        }
+
+        /**
+         * This implementation is empty.
+         */
+        @Override
+        public void handleTransportError(StompSession session, Throwable exception) {
+            System.out.println("handleTransportError(), " + url + ", " + statusFunc.get());
+            terminateOnErrorFunc.run();
+        }
+    }
+
+    @PostConstruct
+    public void post() {
+
+
+//        inProcess.set(true);
+        WebSocketInfra infra8080 = new WebSocketInfra(URL1);
+        WebSocketInfra infra8081 = new WebSocketInfra(URL2);
+
+        this.webSocketInfraMap.put(URL1, infra8080);
+        this.webSocketInfraMap.put(URL2, infra8081);
+
+        System.out.println("infra8080.runInfra()");
+        infra8080.runInfra();
+
+        System.out.println("infra8081.runInfra()");
+//        infra8081.runInfra();
+    }
+
+    @PreDestroy
+    public void preDestroy() {
+        webSocketInfraMap.forEach((key, value) -> value.destroy());
+    }
+
+
 }
