@@ -14,7 +14,7 @@ import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerCo
 @Configuration
 public class Config {
 
-    @Configuration
+/*    @Configuration
     @EnableWebSocketMessageBroker
     @EnableScheduling
     public static class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
@@ -23,5 +23,5 @@ public class Config {
             registry.addEndpoint("/processor");
 //            registry.addEndpoint("/processor").setAllowedOrigins("*").withSockJS();
         }
-    }
+    }*/
 }

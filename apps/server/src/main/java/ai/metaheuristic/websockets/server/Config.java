@@ -18,33 +18,25 @@ import org.springframework.web.socket.server.standard.ServletServerContainerFact
 @Configuration
 public class Config {
 
-    @Bean
-    public ServletServerContainerFactoryBean createWebSocketContainer() {
-        ServletServerContainerFactoryBean container = new ServletServerContainerFactoryBean();
-        container.setMaxTextMessageBufferSize(8192);
-        container.setMaxBinaryMessageBufferSize(8192);
-        return container;
-    }
-
     @Configuration
     @EnableWebSocketMessageBroker
     public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
         @Override
         public void registerStompEndpoints(StompEndpointRegistry registry) {
-            registry.addEndpoint("/dispatcher");
+            registry.addEndpoint("/ws/dispatcher");
         }
 
         @Override
         public void configureMessageBroker(MessageBrokerRegistry config) {
-            config.setApplicationDestinationPrefixes("/dispatcher");
+            config.setApplicationDestinationPrefixes("/ws/dispatcher");
             config.enableSimpleBroker("/topic");
         }
 
         @Override
         public void configureWebSocketTransport(WebSocketTransportRegistration registry) {
-            registry.setMessageSizeLimit(4 * 8192);
-            registry.setTimeToFirstMessage(30000);
+            registry.setMessageSizeLimit(4 * 1024);
+            //registry.setTimeToFirstMessage(30000);
         }
     }
 

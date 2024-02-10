@@ -31,8 +31,8 @@ import java.util.function.Supplier;
 @Service
 @Slf4j
 public class ClientService {
-    public static final String URL1 = "ws://127.0.0.1:8080/dispatcher";
-    public static final String URL2 = "ws://127.0.0.1:8081/dispatcher";
+    public static final String URL1 = "ws://127.0.0.1:8080/ws/dispatcher";
+    public static final String URL2 = "ws://127.0.0.1:8081/ws/dispatcher";
 
     final Map<String, WebSocketInfra> webSocketInfraMap = new HashMap<>();
 
