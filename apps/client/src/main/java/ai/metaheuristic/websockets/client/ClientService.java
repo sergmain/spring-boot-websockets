@@ -128,8 +128,7 @@ public class ClientService {
         private boolean end = false;
 
         private void runInfra() {
-            mainThread = new Thread(this::runInfraLoop);
-            mainThread.start();
+            mainThread = Thread.startVirtualThread(this::runInfraLoop);
         }
 
         private void runInfraLoop() {
@@ -139,8 +138,7 @@ public class ClientService {
                     try {
                         if (wsThread==null) {
                             System.out.println("Create a new thread for connecting to server, " + url);
-                            wsThread = new Thread(this::connectToServer);
-                            wsThread.start();
+                            wsThread = Thread.startVirtualThread(this::connectToServer);
                         }
                     }
                     finally {
