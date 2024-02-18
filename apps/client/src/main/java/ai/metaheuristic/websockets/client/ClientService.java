@@ -1,16 +1,33 @@
+/*
+ *    Copyright 2024 Sergio Lissner, Metaheuristic
+ *
+ *    Licensed under the Apache License, Version 2.0 (the "License");
+ *    you may not use this file except in compliance with the License.
+ *    You may obtain a copy of the License at
+ *
+ *        http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *    Unless required by applicable law or agreed to in writing, software
+ *    distributed under the License is distributed on an "AS IS" BASIS,
+ *    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *    See the License for the specific language governing permissions and
+ *    limitations under the License.
+ */
+
 package ai.metaheuristic.websockets.client;
 
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.exception.ExceptionUtils;
+import org.apache.tomcat.websocket.Constants;
 import org.springframework.lang.NonNull;
 import org.springframework.lang.Nullable;
 import org.springframework.messaging.converter.StringMessageConverter;
 import org.springframework.messaging.simp.stomp.*;
 import org.springframework.scheduling.concurrent.SimpleAsyncTaskScheduler;
 import org.springframework.stereotype.Service;
-import org.springframework.web.socket.client.WebSocketClient;
+import org.springframework.web.socket.WebSocketHttpHeaders;
 import org.springframework.web.socket.client.standard.StandardWebSocketClient;
 import org.springframework.web.socket.messaging.WebSocketStompClient;
 
@@ -33,6 +50,9 @@ import java.util.function.Supplier;
 public class ClientService {
     public static final String URL1 = "ws://127.0.0.1:8080/ws/dispatcher";
     public static final String URL2 = "ws://127.0.0.1:8081/ws/dispatcher";
+
+    public static final String REST_USER = "rest";
+    public static final String REST_PASS = "123";
 
     final Map<String, WebSocketInfra> webSocketInfraMap = new HashMap<>();
 
@@ -60,7 +80,7 @@ public class ClientService {
     }
 
     public static class WebSocketInfra {
-        private final WebSocketClient webSocketClient;
+        private final StandardWebSocketClient webSocketClient;
         private final WebSocketStompClient stompClient;
         private final String url;
         private final MyStompSessionHandler sessionHandler;
@@ -73,6 +93,10 @@ public class ClientService {
         public WebSocketInfra(String url) {
             this.url = url;
             webSocketClient = new StandardWebSocketClient();
+            webSocketClient.setUserProperties(Map.of(
+                Constants.WS_AUTHENTICATION_USER_NAME, REST_USER,
+                Constants.WS_AUTHENTICATION_PASSWORD, REST_PASS
+            ));
             stompClient = new WebSocketStompClient(webSocketClient);
             stompClient.setMessageConverter(new StringMessageConverter());
             final SimpleAsyncTaskScheduler taskScheduler = new SimpleAsyncTaskScheduler();
@@ -142,7 +166,13 @@ public class ClientService {
             System.out.println("start processing CompletableFuture, " + url);
             inProcess.set(true);
             try {
-                CompletableFuture<StompSession> future = stompClient.connectAsync(url, sessionHandler);
+                StompHeaders connectHeaders = new StompHeaders();
+//                connectHeaders.add("login", REST_USER);
+//                connectHeaders.add("passcode", REST_PASS);
+
+//                WebSocketHttpHeaders webSocketHttpHeaders = new WebSocketHttpHeaders();
+//                webSocketHttpHeaders.add("Basic", HttpHeaders.encodeBasicAuth(REST_USER, REST_PASS, StandardCharsets.US_ASCII));
+                CompletableFuture<StompSession> future = stompClient.connectAsync(url, new WebSocketHttpHeaders(), connectHeaders, sessionHandler);
 
                 System.out.println("\twaiting for completion, " + url);
                 StompSession session = future.get();
