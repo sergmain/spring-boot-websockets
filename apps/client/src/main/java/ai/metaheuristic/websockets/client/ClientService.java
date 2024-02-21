@@ -100,6 +100,7 @@ public class ClientService {
             stompClient = new WebSocketStompClient(webSocketClient);
             stompClient.setMessageConverter(new StringMessageConverter());
             final SimpleAsyncTaskScheduler taskScheduler = new SimpleAsyncTaskScheduler();
+            taskScheduler.setVirtualThreads(true);
             stompClient.setTaskScheduler(taskScheduler); // for heartbeats
 
             sessionHandler = new MyStompSessionHandler(url, url1 -> connectToServer(), inProcess::get, this::terminateWsThread);

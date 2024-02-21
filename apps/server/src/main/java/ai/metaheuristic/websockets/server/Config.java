@@ -16,9 +16,13 @@
 
 package ai.metaheuristic.websockets.server;
 
+import org.springframework.aop.interceptor.AsyncExecutionAspectSupport;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.task.SimpleAsyncTaskExecutor;
+import org.springframework.core.task.TaskExecutor;
 import org.springframework.messaging.simp.config.MessageBrokerRegistry;
+import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -29,8 +33,11 @@ import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
 import org.springframework.web.socket.config.annotation.WebSocketTransportRegistration;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.web.socket.server.standard.ServletServerContainerFactoryBean;
 
+import static org.springframework.aop.interceptor.AsyncExecutionAspectSupport.*;
 import static org.springframework.http.HttpMethod.OPTIONS;
+import static org.springframework.scheduling.config.TaskSchedulerRouter.DEFAULT_TASK_SCHEDULER_BEAN_NAME;
 import static org.springframework.security.config.Customizer.withDefaults;
 
 
@@ -40,11 +47,34 @@ import static org.springframework.security.config.Customizer.withDefaults;
  * Time: 12:17 PM
  */
 @Configuration
+@EnableAsync
 public class Config {
 
     @Bean
     public PasswordEncoder getPasswordEncoder() {
         return new BCryptPasswordEncoder(10);
+    }
+
+    @Bean
+    public ServletServerContainerFactoryBean createWebSocketContainer() {
+        ServletServerContainerFactoryBean container = new ServletServerContainerFactoryBean();
+        container.setMaxTextMessageBufferSize(8192);
+        container.setMaxBinaryMessageBufferSize(8192);
+        return container;
+    }
+
+    @Bean
+    public TaskExecutor taskExecutor() {
+        final SimpleAsyncTaskExecutor simpleAsyncTaskExecutor = new SimpleAsyncTaskExecutor(DEFAULT_TASK_EXECUTOR_BEAN_NAME);
+        simpleAsyncTaskExecutor.setVirtualThreads(true);
+        return simpleAsyncTaskExecutor;
+    }
+
+    @Bean
+    public TaskExecutor taskScheduler() {
+        final SimpleAsyncTaskExecutor simpleAsyncTaskExecutor = new SimpleAsyncTaskExecutor(DEFAULT_TASK_SCHEDULER_BEAN_NAME);
+        simpleAsyncTaskExecutor.setVirtualThreads(true);
+        return simpleAsyncTaskExecutor;
     }
 
     @Configuration
